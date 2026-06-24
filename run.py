@@ -11,7 +11,6 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Requ
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-import uvicorn
 
 import bot as B
 
@@ -577,9 +576,8 @@ async def _end_webapp_session(session: B.Session):
 
 
 # ── Инициализация БД при старте веб-сервера ──────────────────────────────────
-# run.py = ТОЛЬКО веб-сервер (mini app). Сам бот (polling) запускается отдельно
-# из bot.py — так BotHost держит два независимых процесса и порт не занимается
-# дважды. Веб-процессу нужен только доступ к БД, без polling.
+# BotHost сам обслуживает мини-апп: видит объект `app` в этом модуле и поднимает
+# на нём uvicorn (веб-процесс). Этому процессу нужен только доступ к БД.
 @app.on_event("startup")
 async def _on_startup():
     if B._db is None:
@@ -587,11 +585,8 @@ async def _on_startup():
 
 
 # ── Точка входа ───────────────────────────────────────────────────────────────
-async def main():
-    port = int(os.getenv("PORT", "3000"))
-    config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning")
-    server = uvicorn.Server(config)
-    await server.serve()
-
+# BotHost ДОПОЛНИТЕЛЬНО запускает этот файл как `python run.py` (процесс «бота»).
+# Здесь поднимаем БОТА (polling). Второй uvicorn НЕ стартуем — веб уже держит
+# BotHost, иначе конфликт порта ('address already in use').
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(B._main())
